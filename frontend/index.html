@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Name Verification App</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .status-bar {
+            background: white;
+            padding: 16px;
+            border-radius: 8px 8px 0 0;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            font-size: 14px;
+            color: #333;
+        }
+
+        .status-bar strong {
+            color: #667eea;
+            font-weight: 600;
+        }
+
+        .status-bar .target-name {
+            font-family: 'Courier New', monospace;
+            background: #f0f0f0;
+            padding: 2px 6px;
+            border-radius: 4px;
+            display: inline-block;
+        }
+
+        .status-bar.no-target {
+            color: #999;
+            font-style: italic;
+        }
+
+        .panels {
+            display: flex;
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        .panel {
+            flex: 1;
+            background: white;
+            border-radius: 8px;
+            padding: 24px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .panel h2 {
+            font-size: 18px;
+            margin-bottom: 20px;
+            color: #333;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 12px;
+        }
+
+        .form-group {
+            margin-bottom: 16px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .form-group label {
+            font-size: 13px;
+            font-weight: 600;
+            color: #555;
+            margin-bottom: 6px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .form-group textarea,
+        .form-group input {
+            padding: 10px 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+            font-family: inherit;
+            transition: border-color 0.2s;
+        }
+
+        .form-group textarea {
+            resize: vertical;
+            min-height: 100px;
+            font-family: 'Courier New', monospace;
+        }
+
+        .form-group textarea:focus,
+        .form-group input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .button {
+            padding: 10px 16px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .button-primary {
+            background: #667eea;
+            color: white;
+        }
+
+        .button-primary:hover:not(:disabled) {
+            background: #5568d3;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        .button-primary:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            opacity: 0.6;
+        }
+
+        .button-primary.loading {
+            position: relative;
+            color: transparent;
+        }
+
+        .button-primary.loading::after {
+            content: '';
+            position: absolute;
+            width: 14px;
+            height: 14px;
+            top: 50%;
+            left: 50%;
+            margin-left: -7px;
+            margin-top: -7px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 0.6s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .result {
+            margin-top: 20px;
+            padding: 16px;
+            border-radius: 6px;
+            border-left: 4px solid;
+            display: none;
+            animation: fadeIn 0.3s ease-in;
+        }
+
+        .result.show {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-4px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .result.success {
+            background: #f0fdf4;
+            border-color: #22c55e;
+            color: #166534;
+        }
+
+        .result.error {
+            background: #fef2f2;
+            border-color: #ef4444;
+            color: #991b1b;
+        }
+
+        .result.info {
+            background: #eff6ff;
+            border-color: #3b82f6;
+            color: #1e40af;
+        }
+
+        .result-title {
+            font-weight: 600;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+
+        .result-content {
+            font-size: 13px;
+            line-height: 1.5;
+        }
+
+        .result-item {
+            margin: 8px 0;
+        }
+
+        .result-label {
+            font-weight: 500;
+            display: inline-block;
+            min-width: 90px;
+        }
+
+        .result-value {
+            font-family: 'Courier New', monospace;
+        }
+
+        .generator-result {
+            margin-top: 20px;
+            padding: 16px;
+            background: #f9fafb;
+            border-radius: 6px;
+            border: 1px solid #e5e7eb;
+            display: none;
+            animation: fadeIn 0.3s ease-in;
+        }
+
+        .generator-result.show {
+            display: block;
+        }
+
+        .generator-result-label {
+            font-size: 12px;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 6px;
+        }
+
+        .generator-result-value {
+            font-size: 18px;
+            font-weight: 600;
+            color: #667eea;
+            font-family: 'Courier New', monospace;
+            word-break: break-word;
+        }
+
+        @media (max-width: 900px) {
+            .panels {
+                flex-direction: column;
+            }
+
+            .panel {
+                padding: 16px;
+            }
+
+            .panel h2 {
+                font-size: 16px;
+            }
+        }
+
+        .empty-state {
+            color: #999;
+            font-style: italic;
+            font-size: 13px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="status-bar no-target" id="statusBar">
+            <strong>Current target:</strong> <span class="target-name">None</span>
+        </div>
+
+        <div class="panels">
+            <!-- Generator Panel -->
+            <div class="panel">
+                <h2>Generator</h2>
+
+                <div class="form-group">
+                    <label for="promptInput">Prompt</label>
+                    <textarea
+                        id="promptInput"
+                        placeholder="Enter a prompt to generate a name (e.g., 'Generate a random Arabic sounding name with an Al and ibn both involved')"
+                    ></textarea>
+                </div>
+
+                <button class="button button-primary" id="generateBtn">Generate</button>
+
+                <div class="result" id="generatorError"></div>
+
+                <div class="generator-result" id="generatorResult">
+                    <div class="generator-result-label">Generated Name</div>
+                    <div class="generator-result-value" id="generatorResultValue"></div>
+                </div>
+            </div>
+
+            <!-- Verifier Panel -->
+            <div class="panel">
+                <h2>Verifier</h2>
+
+                <div class="form-group">
+                    <label for="candidateInput">Candidate Name</label>
+                    <input
+                        type="text"
+                        id="candidateInput"
+                        placeholder="Enter a name to verify against the target"
+                    >
+                </div>
+
+                <button class="button button-primary" id="verifyBtn">Verify</button>
+
+                <div class="result" id="verifierError"></div>
+                <div class="result" id="verifierResult"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = '';
+
+        // Elements
+        const statusBar = document.getElementById('statusBar');
+        const promptInput = document.getElementById('promptInput');
+        const generateBtn = document.getElementById('generateBtn');
+        const generatorError = document.getElementById('generatorError');
+        const generatorResult = document.getElementById('generatorResult');
+        const generatorResultValue = document.getElementById('generatorResultValue');
+
+        const candidateInput = document.getElementById('candidateInput');
+        const verifyBtn = document.getElementById('verifyBtn');
+        const verifierError = document.getElementById('verifierError');
+        const verifierResult = document.getElementById('verifierResult');
+
+        let currentTarget = null;
+
+        // Initialize on page load
+        async function initializePage() {
+            try {
+                const response = await fetch(`${API_BASE}/status`);
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+                const data = await response.json();
+                if (data.target_name) {
+                    currentTarget = data.target_name;
+                    updateStatusBar();
+                }
+            } catch (error) {
+                console.error('Failed to load status:', error);
+                // Continue anyway - status is optional
+            }
+        }
+
+        function updateStatusBar() {
+            const targetNameSpan = statusBar.querySelector('.target-name');
+            if (currentTarget) {
+                targetNameSpan.textContent = currentTarget;
+                statusBar.classList.remove('no-target');
+            } else {
+                targetNameSpan.textContent = 'None';
+                statusBar.classList.add('no-target');
+            }
+        }
+
+        function showError(element, message) {
+            element.innerHTML = `
+                <div class="result-title">Error</div>
+                <div class="result-content">${escapeHtml(message)}</div>
+            `;
+            element.classList.remove('info', 'success');
+            element.classList.add('error', 'show');
+        }
+
+        function showInfo(element, message) {
+            element.innerHTML = `
+                <div class="result-content">${escapeHtml(message)}</div>
+            `;
+            element.classList.remove('error', 'success');
+            element.classList.add('info', 'show');
+        }
+
+        function escapeHtml(text) {
+            const map = {
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#039;'
+            };
+            return text.replace(/[&<>"']/g, m => map[m]);
+        }
+
+        function setButtonLoading(btn, loading) {
+            if (loading) {
+                btn.disabled = true;
+                btn.classList.add('loading');
+            } else {
+                btn.disabled = false;
+                btn.classList.remove('loading');
+            }
+        }
+
+        // Generate button handler
+        generateBtn.addEventListener('click', async () => {
+            const prompt = promptInput.value.trim();
+
+            if (!prompt) {
+                showError(generatorError, 'Please enter a prompt');
+                return;
+            }
+
+            generatorError.classList.remove('show');
+            setButtonLoading(generateBtn, true);
+
+            try {
+                const response = await fetch(`${API_BASE}/generate`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ prompt })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+
+                const data = await response.json();
+
+                if (!data.name) {
+                    throw new Error('Server returned no name');
+                }
+
+                currentTarget = data.name;
+                updateStatusBar();
+
+                generatorResultValue.textContent = currentTarget;
+                generatorResult.classList.add('show');
+                generatorError.classList.remove('show');
+
+            } catch (error) {
+                showError(generatorError, `Generation failed: ${error.message}`);
+                generatorResult.classList.remove('show');
+            } finally {
+                setButtonLoading(generateBtn, false);
+            }
+        });
+
+        // Verify button handler
+        verifyBtn.addEventListener('click', async () => {
+            const candidate = candidateInput.value.trim();
+
+            if (!candidate) {
+                showError(verifierError, 'Please enter a candidate name');
+                return;
+            }
+
+            if (!currentTarget) {
+                showInfo(verifierError, 'No target name generated yet. Please generate a target name first.');
+                verifierResult.classList.remove('show');
+                return;
+            }
+
+            verifierError.classList.remove('show');
+            setButtonLoading(verifyBtn, true);
+
+            try {
+                const response = await fetch(`${API_BASE}/verify`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ candidate })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+
+                const data = await response.json();
+
+                if (typeof data.match === 'undefined' || typeof data.confidence === 'undefined') {
+                    throw new Error('Invalid response format');
+                }
+
+                // Display result
+                const resultClass = data.match ? 'success' : 'error';
+                const confidencePercent = Math.round(data.confidence * 100);
+
+                verifierResult.innerHTML = `
+                    <div class="result-title">${data.match ? 'Match Found' : 'No Match'}</div>
+                    <div class="result-content">
+                        <div class="result-item">
+                            <span class="result-label">Match:</span>
+                            <span class="result-value">${data.match ? 'Yes' : 'No'}</span>
+                        </div>
+                        <div class="result-item">
+                            <span class="result-label">Confidence:</span>
+                            <span class="result-value">${confidencePercent}%</span>
+                        </div>
+                        <div class="result-item">
+                            <span class="result-label">Reason:</span>
+                        </div>
+                        <div style="margin-left: 0; margin-top: 4px; padding-left: 12px; border-left: 2px solid currentColor;">
+                            ${escapeHtml(data.reason)}
+                        </div>
+                    </div>
+                `;
+                verifierResult.classList.remove('info', 'error');
+                verifierResult.classList.add(resultClass, 'show');
+                verifierError.classList.remove('show');
+
+            } catch (error) {
+                showError(verifierError, `Verification failed: ${error.message}`);
+                verifierResult.classList.remove('show');
+            } finally {
+                setButtonLoading(verifyBtn, false);
+            }
+        });
+
+        // Allow Enter key to generate/verify
+        promptInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && e.ctrlKey) {
+                generateBtn.click();
+            }
+        });
+
+        candidateInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                verifyBtn.click();
+            }
+        });
+
+        // Initialize on page load
+        initializePage();
+    </script>
+</body>
+</html>
