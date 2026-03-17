@@ -38,10 +38,63 @@ KNOWN_DISTINCT_NAMES = {
     "alex", "alexa",
     "john", "jane",
     "anna", "anne",
+    "christopher", "christian",
 }
 
 # Vowels used in gender-variant final-char check
 _VOWELS = set("aeiou")
+
+# ---------------------------------------------------------------------------
+# Name particles — connectives/prepositions that should not count as full
+# name tokens for penalty purposes (missing particle ≠ different person).
+# ---------------------------------------------------------------------------
+_PARTICLES = {"ibn", "bin", "bint", "abu", "al", "el", "de", "van", "von", "le", "la", "du"}
+
+# ---------------------------------------------------------------------------
+# Transliteration normalization table.
+# Applied per-token before JW/phonetic scoring to collapse common
+# Arabic and Slavic spelling variants to a canonical form.
+# Order matters — apply longer patterns first.
+# ---------------------------------------------------------------------------
+_TRANSLIT_RULES = [
+    # Arabic vowel/consonant variants
+    ("ou", "u"),       # Youssef → Yusuf, Mousa → Musa
+    ("oo", "u"),       # Noor → Nur
+    ("ei", "i"),       # Sheikh → Shikh
+    ("ae", "a"),       # Isaael → Isaal
+    ("kh", "x"),       # Khalid → Xalid (canonical internal form)
+    ("gh", "g"),       # Baghdad → Bagdad
+    ("ph", "f"),       # Yuseph → Yusef
+    ("ck", "k"),
+    ("qu", "k"),       # Qasim → Kasim
+    # Slavic suffix variants (word-final normalization)
+    ("off", "ov"),     # Gorbachoff → Gorbachov
+    ("eff", "ev"),     # Chekheff → Chekhev
+    ("ef",  "ev"),     # Chekhef  → Chekhev  (only if terminal — handled below)
+    ("of",  "ov"),     # Smirnof  → Smirnov  (only if terminal)
+    ("sky", "ski"),    # Slavic adjectival surnames
+    ("skiy","ski"),
+    ("skij","ski"),
+]
+
+
+def _transliterate(tok: str) -> str:
+    """
+    Normalize a single lowercase token using the transliteration table.
+    Suffix-only rules (of→ov, ef→ev) are only applied at word end.
+    """
+    s = tok
+    # Apply general (anywhere) rules first
+    general = [("ou","u"),("oo","u"),("ei","i"),("ae","a"),
+               ("kh","x"),("gh","g"),("ph","f"),("ck","k"),("qu","k"),
+               ("off","ov"),("eff","ev"),("sky","ski"),("skiy","ski"),("skij","ski")]
+    for src, dst in general:
+        s = s.replace(src, dst)
+    # Apply suffix-only rules
+    for src, dst in [("of","ov"),("ef","ev")]:
+        if s.endswith(src):
+            s = s[:-len(src)] + dst
+    return s
 
 
 # ---------------------------------------------------------------------------
@@ -159,9 +212,16 @@ def _token_score(tok1: str, tok2: str):
     if in_group:
         return 0.95, "nickname"
 
-    jw = jellyfish.jaro_winkler_similarity(tok1, tok2)
-    m1 = jellyfish.metaphone(tok1)
-    m2 = jellyfish.metaphone(tok2)
+    # Apply transliteration normalization before fuzzy scoring
+    t1 = _transliterate(tok1)
+    t2 = _transliterate(tok2)
+
+    if t1 == t2:
+        return 0.92, "transliteration"  # slightly below nickname, above raw fuzzy
+
+    jw = jellyfish.jaro_winkler_similarity(t1, t2)
+    m1 = jellyfish.metaphone(t1)
+    m2 = jellyfish.metaphone(t2)
     phonetic_match = bool(m1 and m2 and m1 == m2)
 
     if phonetic_match:
@@ -318,12 +378,21 @@ def verify(target: str, candidate: str) -> dict:
         token_weights.append(weight)
 
     # Unmatched tokens (length mismatch)
-    n_unmatched = max_len - min_len
-    for i in range(n_unmatched):
-        # Use a small but non-zero weight so short extra tokens hurt less
-        token_scores.append(0.3)
-        token_weights.append(3)
-        token_tags.append("unmatched")
+    # Identify which extra tokens are particles — missing a particle is not penalized.
+    longer_toks = toks_a if len(toks_a) > len(toks_b) else toks_b
+    extra_toks = longer_toks[min_len:]
+    n_unmatched = 0
+    for extra in extra_toks:
+        if extra in _PARTICLES:
+            # Particle token — free, high score so it doesn't drag confidence down
+            token_scores.append(0.9)
+            token_weights.append(1)
+            token_tags.append("particle")
+        else:
+            token_scores.append(0.3)
+            token_weights.append(3)
+            token_tags.append("unmatched")
+            n_unmatched += 1
 
     # Weighted average
     if not token_weights:
@@ -332,7 +401,7 @@ def verify(target: str, candidate: str) -> dict:
         total_weight = sum(token_weights)
         confidence = sum(s * w for s, w in zip(token_scores, token_weights)) / total_weight
 
-    # Per extra token penalty
+    # Per extra non-particle token penalty
     if n_unmatched:
         confidence *= (0.85 ** n_unmatched)
 
